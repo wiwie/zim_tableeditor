@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2009 Jaap Karssenberg <jaap.karssenberg@gmail.com>
+# Copyright 2015 Christian Wiwie <derwiwie@googlemail.com>
 
 import glob
 import gtk
