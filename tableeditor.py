@@ -95,11 +95,19 @@ class InsertTableDialog(Dialog):
 	imagename = 'table.png'
 
 	def __init__(self, ui, pageview, table=None):
-		Dialog.__init__(self, ui, _('Insert Table'), # T: Dialog title
-			button=(_('_Insert'), 'gtk-ok'),  # T: Button label
-			defaultwindowsize=(350, 400) )
+		if table is None:
+			Dialog.__init__(self, ui, _('Insert Table'), # T: Dialog title
+				button=(_('_Insert'), 'gtk-ok'),  # T: Button label
+				defaultwindowsize=(350, 400) )
+		else:
+			Dialog.__init__(self, ui, _('Edit Table'), # T: Dialog title
+				button=(_('_Edit'), 'gtk-ok'),  # T: Button label
+				defaultwindowsize=(350, 400) )
 		self.table = table
 		self.pageview = pageview
+		
+		self.rownames = gtk.ListStore(int, gobject.TYPE_STRING)
+		self.columnNames = gtk.ListStore(int, str)
 
 		self.template = get_template('plugins', 'equationeditor.tex')
 		self.texfile = TmpFile(self.scriptname)
@@ -123,7 +131,6 @@ class InsertTableDialog(Dialog):
 			columnTypes.append(storeOld.get_column_type(c))
 			
 		columnTypes.extend(newColumnTypes)
-		print(columnTypes)
 		store = gtk.ListStore(*columnTypes)
 		# copy rows
 		r = 0
@@ -142,7 +149,19 @@ class InsertTableDialog(Dialog):
 				for newColumn in newColumnTypes:
 					columnNames.append([''])
 			r = r + 1
+		self.set_store(store)
 		return store, rowNames, columnNames
+	
+	def set_store(self, newStore):
+		self.store = newStore
+		
+		# update combo boxes initially
+		self.update_row_names()
+		self.update_col_names()
+		
+		self.store.connect('row-changed',self.on_row_changed)
+		self.store.connect('row-deleted',self.on_row_deleted)
+		self.store.connect('row-inserted',self.on_row_inserted)
 			
 	def init_table(self, table=None):
 		import gobject
@@ -152,9 +171,7 @@ class InsertTableDialog(Dialog):
 		# copy model
 		store, rownames, columnames = self.add_columns_to_store(storeOld)
 		
-		self.rownames = rownames
-		self.columnNames = columnames
-		
+		self.set_store(store)
 		ncol = store.get_n_columns()
 		self.treeview = gtk.TreeView(store)
 		self.treeview.set_headers_visible(False)
@@ -183,20 +200,65 @@ class InsertTableDialog(Dialog):
 		
 		# buttons / comboboxes for removal of rows/columns
 		table = gtk.Table(rows=2,columns=3,homogeneous=False)
-		table.attach(gtk.Button("Remove Row"),left_attach=0, right_attach=1, top_attach=1, bottom_attach=2)
+		remove_row_btn = gtk.Button("Remove Row")
+		remove_row_btn.connect('clicked', self.on_del_row)
+		table.attach(remove_row_btn,left_attach=0, right_attach=1, top_attach=1, bottom_attach=2)
+		
 		combo = gtk.ComboBox(self.rownames)
 		cell = gtk.CellRendererText()
 		combo.pack_start(cell, True)
-		combo.add_attribute(cell, 'text', 0)
+		combo.add_attribute(cell, 'text', 1)
+		self.remove_row_combo = combo
 		table.attach(combo,left_attach=1, right_attach=2, top_attach=1, bottom_attach=2)
-		table.attach(combo,left_attach=1, right_attach=2, top_attach=1, bottom_attach=2)
-		table.attach(gtk.Button("Remove Column"),left_attach=0, right_attach=1, top_attach=3, bottom_attach=4)
-		table.attach(gtk.Entry(),left_attach=1, right_attach=2, top_attach=3, bottom_attach=4)
+		
+		remove_col_btn = gtk.Button("Remove Column")
+		remove_col_btn.connect('clicked', self.on_del_col)
+		table.attach(remove_col_btn,left_attach=0, right_attach=1, top_attach=3, bottom_attach=4)
+		
+		combo = gtk.ComboBox(self.columnNames)
+		cell = gtk.CellRendererText()
+		combo.pack_start(cell, True)
+		combo.add_attribute(cell, 'text', 1)
+		self.remove_col_combo = combo
+		table.attach(combo,left_attach=1, right_attach=2, top_attach=3, bottom_attach=4)
+		self.tableView = table
+		
 		self.vbox.add(table)
+		
+	def on_row_changed(self, treemodel, path, iter):
+		self.update_row_names()
+		self.update_col_names()
+		
+	def on_row_deleted(self, treemodel, path):
+		self.update_row_names()
+		
+	def on_row_inserted(self, treemodel, path, iter):
+		self.update_row_names()
+	
+	def update_row_names(self):
+		self.rownames.clear()
+		
+		r = 0
+		for row in self.store:
+			if r > 0:
+				self.rownames.append([r, row[0]])
+			r = r + 1
+		
+	def update_col_names(self):
+		self.columnNames.clear()
+		
+		for row in self.store:
+			for p in range(1,len(row)):
+				self.columnNames.append([p, row[p]])
+			return
 		
 	def edited_cb(self, cell, path, new_text, user_data):
 		liststore, column = user_data
 		liststore[path][column] = new_text
+		if column == 0:
+			self.update_row_names()
+		if path == 0:
+			self.update_col_names()
 		return
 		
 	def on_rowheader_insert(self, textview, text):
@@ -205,29 +267,31 @@ class InsertTableDialog(Dialog):
 			textview.emit_stop_by_name('key-press-event')
 		
 	def on_add_row(self, button):
-		self.treeview.get_model().append()
+		newRow = []
+		for c in range(0, self.treeview.get_model().get_n_columns()):
+			newRow.append('')
+		self.treeview.get_model().append(newRow)
+		self.update_row_names()
 		
 	def on_del_row(self, button):
-		# TODO
-		#self.update_data()
-		#name = button.get_name()
+		active_row = self.remove_row_combo.get_active_iter()
+		if active_row is None:
+			return
 		
-		#newData = copy.deepcopy(self.data)
-		#del newData[int(name)]
-		#self.rowIds.remove(int(name)+1)
-		
-		#newRowHeader = copy.deepcopy(self.rowheader)
-		#del newRowHeader[int(name)]
-		
-		#self.vbox.remove(self.table)
-		#self.init_table(data=newData,ncol=self.ncol,nrow=self.nrow-1,rowheader=newRowHeader,columnheader=self.columnheader)
+		# search for that row in the data store
+		row_in_model = self.remove_row_combo.get_model().get_path(active_row)
+		target_iter = self.treeview.get_model().get_iter(row_in_model)
+		# we have to go to next row, since we have an additional header row in the data store
+		target_iter = self.treeview.get_model().iter_next(target_iter)
+		self.treeview.get_model().remove(target_iter)
 		
 	def on_add_col(self, button):
+		c = self.treeview.get_model().get_n_columns()
 		store, rownames, columnames = self.add_columns_to_store(self.treeview.get_model(), newColumnTypes=[gobject.TYPE_STRING])
 		self.treeview.set_model(store)
+		self.set_store(store)
 		
 		# add column to treeview		
-		c = self.treeview.get_model().get_n_columns()
 		column = gtk.TreeViewColumn()
 		cellrender = gtk.CellRendererText()
 		cellrender.set_property('editable', True)
@@ -236,31 +300,44 @@ class InsertTableDialog(Dialog):
 		column.add_attribute(cellrender, 'text', c)
 		self.treeview.append_column(column)
 		
-		self.rownames = rownames
-		self.columnNames = columnames
-		
 		
 	def on_del_col(self, button):
-		# TODO
-		#self.update_data()
-		#name = button.get_name()
-		
-		#newData = []
-		#for row in self.data:
-		#	newRow = copy.deepcopy(row)
-		#	del newRow[int(name)]
-		#	newData.append(newRow)
+		active_col = self.remove_col_combo.get_active_iter()
+		if active_col is None:
+			return
 			
-		#self.colIds.remove(int(name)+1)
+		target_col = self.remove_col_combo.get_model()[active_col][0]
 		
-		#newColHeader = copy.deepcopy(self.columnheader)
-		#del newColHeader[int(name)]
-		#self.vbox.remove(self.table)
-		#self.init_table(data=newData,ncol=self.ncol-1,nrow=self.nrow,rowheader=self.rowheader,columnheader=newColHeader)
+		# create a new liststore containing all rows without the corresponding column
+		columnTypes = []
+		for c in range(0, self.treeview.get_model().get_n_columns()):
+			if c <> target_col:
+				columnTypes.append(self.treeview.get_model().get_column_type(c))
+			
+		newStore = gtk.ListStore(*columnTypes)
+		
+		for row in self.treeview.get_model():
+			newRow = []
+			for c in range(0, len(row)):
+				if c <> target_col:
+					newRow.append(row[c])
+			newStore.append(newRow)
+		self.treeview.set_model(newStore)
+		self.set_store(newStore)
+		
+		self.treeview.remove_column(self.treeview.get_column(target_col))
 
 	def do_response_ok(self):
 		self.table.treeview.set_model(self.treeview.get_model())
 		# TODO: adapt treeview to new columns
+		for column in self.table.treeview.get_columns():
+			self.table.treeview.remove_column(column)
+		for c in range(0,self.treeview.get_model().get_n_columns()):
+			column = gtk.TreeViewColumn()
+			cellrender = gtk.CellRendererText()
+			column.pack_start(cellrender, True)
+			column.add_attribute(cellrender, 'text', c)
+			self.table.treeview.append_column(column)
 		self.result = 1
 		return True
 		
@@ -285,7 +362,7 @@ class TableObject(CustomObjectClass):
 		self.data = None
 		self.rowheader = None
 		self.columnheader = None
-		self.connect('modified-changed', self.dump)
+		#self.connect('modified-changed', self.dump)
 
 	def get_widget(self):
 		if not self._widget:
