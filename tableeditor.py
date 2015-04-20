@@ -333,7 +333,7 @@ class InsertTableDialog(Dialog):
 		liststore, column = user_data
 		if column == 0 and path == '0':
 			return
-		liststore[path][column] = new_text
+		self.treeview.get_model()[path][column] = new_text
 		if column == 0:
 			self.update_row_names()
 		if path == '0':
