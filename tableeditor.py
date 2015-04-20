@@ -8,10 +8,6 @@ import logging
 import pango
 import gobject
 
-from Tkinter import *
-from tkintertable.Tables import *
-from tkintertable.TableModels import *
-
 from zim.plugins import PluginClass, extends, WindowExtension
 from zim.actions import action
 from zim.gui.widgets import Dialog, Button, InputEntry, ScrolledWindow
