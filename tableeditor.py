@@ -261,13 +261,15 @@ class InsertTableDialog(Dialog):
 			treeview.append_column(column)
 		
 		table = gtk.Table(rows=2,columns=2,homogeneous=False)
-		table.attach(treeview,left_attach=0, right_attach=1, top_attach=0, bottom_attach=1)
+		win = gtk.ScrolledWindow()
+		win.add(treeview)
+		table.attach(win,left_attach=0, right_attach=1, top_attach=0, bottom_attach=1)
 		addRowBtn = gtk.Button("+")
 		addRowBtn.connect('clicked', self.on_add_row)
-		table.attach(addRowBtn,left_attach=0, right_attach=1, top_attach=1, bottom_attach=2)
+		table.attach(addRowBtn,left_attach=0, right_attach=1, top_attach=1, bottom_attach=2, xoptions=gtk.FILL, yoptions=gtk.FILL)
 		addColBtn = gtk.Button("+")
 		addColBtn.connect('clicked', self.on_add_col)
-		table.attach(addColBtn,left_attach=1, right_attach=2, top_attach=0, bottom_attach=1)
+		table.attach(addColBtn,left_attach=1, right_attach=2, top_attach=0, bottom_attach=1, xoptions=gtk.FILL, yoptions=gtk.FILL)
 		self.vbox.pack_start(table)
 		treeview.show_all()
 		
